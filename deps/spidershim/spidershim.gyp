@@ -45,9 +45,9 @@
         'libraries': [
           '-lspidershim',
           '-lz',
-          '<(spidermonkey_obj_dir)/js/src/libjs_static.a',
-          '<(spidermonkey_obj_dir)/mozglue/build/libmozglue.dylib',
-          '<(spidermonkey_obj_dir)/dist/PositronDebug.app/Contents/MacOS/libnss3.dylib',
+          '<(spidermonkey_obj_dir)/js/src/<(STATIC_LIB_PREFIX)js_static<(STATIC_LIB_SUFFIX)',
+          '<(spidermonkey_obj_dir)/dist/lib/<(SHARED_LIB_PREFIX)nss3<(SHARED_LIB_SUFFIX)',
+
         ],
         'conditions': [
           [ 'target_arch=="arm"', {
@@ -57,15 +57,15 @@
             'libraries': [
               '-ldl',
               '-lzlib',
-              '<(PRODUCT_DIR)/<(STATIC_LIB_PREFIX)mozglue<(STATIC_LIB_SUFFIX)',
               '-lrt',
+              '<(spidermonkey_obj_dir)/mozglue/build/<(STATIC_LIB_PREFIX)mozglue<(STATIC_LIB_SUFFIX)',
             ],
           }],
-          # ['OS == "mac"', {
-          #   'libraries': [
-          #     '-lmozglue',
-          #   ],
-          # }],
+          ['OS == "mac"', {
+            'libraries': [
+              '<(spidermonkey_obj_dir)/mozglue/build/<(SHARED_LIB_PREFIX)mozglue<(SHARED_LIB_SUFFIX)',
+            ],
+          }],
         ],
       },
 
