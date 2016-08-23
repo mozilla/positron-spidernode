@@ -1,8 +1,10 @@
 #!/bin/bash
 
-source `dirname "$0"`/travis.sh
+mydir=`dirname $0`
 
-for ac in "$AUTOCONF" autoconf213 autoconf2.13; do
+source "$mydir/travis.sh"
+
+for ac in "$AUTOCONF" autoconf213 autoconf2.13 autoconf-2.13; do
   if which $ac >/dev/null; then
     AUTOCONF=`which $ac`
     break
@@ -29,7 +31,7 @@ case "$config" in
     ;;
 esac
 
-srcdir="$PWD"
+srcdir=`cd "$mydir/.." && pwd`
 build="$1"
 shift
 
@@ -46,9 +48,13 @@ test -d $build || mkdir $build
 cd $build
 
 if [ "$TRAVIS" == "true" ]; then
-make="travis_wait 60 make -s"
+  make="travis_wait 60 make -s"
 else
-make="make -s"
+  if [ "$OSTYPE" == "msys" ]; then
+    make="mozmake -s"
+  else
+    make="make -s"
+  fi
 fi
 
 ccache_arg=""

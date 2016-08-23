@@ -13,7 +13,7 @@ To enable building and running Node.js with SpiderMonkey, a V8 API shim (SpiderS
 ### Current status
 This is a _work in progress_.  Node can now be successfully built on top of SpiderMonkey, and the very basics seem to work, but there are probably still a lot of issues to discover and fix.
 
-We have implemented a fair portion of the V8 API.  More specifically [these tests](https://github.com/mozilla/spidernode/blob/master/deps/spidershim/test) currently passes.  Many of those tests have been ported from the V8 API tests.
+We have implemented a fair portion of the V8 API.  More specifically [these tests](https://github.com/mozilla/spidernode/blob/master/deps/spidershim/test) are currently passing.  Many of those tests have been ported from the V8 API tests.
 
 ### How to build
 Before building please make sure you have the prerequisites for building Node.js as documented [here](https://github.com/nodejs/node/blob/master/BUILDING.md).
@@ -34,6 +34,7 @@ Where `options` is zero or more of:
 * `--engine`: The JavaScript engine to use.  The default engine is `spidermonkey`.
 * `--debug`: Also build in debug mode.  The default build configuration is release.
 * `--enable-gczeal`: Enable SpiderMonkey gc-zeal support.  This is useful for debugging GC rooting correctness issues.
+* `--with-external-spidermonkey-release` and `--with-external-spidermonkey-debug`: Enable building against an out of tree SpiderMonkey. Expects a path to a built SpiderMonkey object directory (in release and debug modes, respectively)
 
 To run the API tests, do:
 

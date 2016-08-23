@@ -23,7 +23,7 @@
 #include "v8.h"
 #include "v8context.h"
 #include "v8local.h"
-#include "jsapi.h"
+#include "autojsapi.h"
 #include "jsfriendapi.h"
 #include "instanceslots.h"
 #include "spidershim_natives.h"
@@ -75,7 +75,7 @@ Local<Context> Context::New(Isolate* isolate,
   // HandleScope on the stack works correctly.
   HandleScope handleScope(isolate);
 
-  assert(isolate->Runtime());
+  assert(isolate->RuntimeContext());
   JSContext* cx = JSContextFromIsolate(isolate);
   Context* context = new Context(cx);
   if (!context->CreateGlobal(cx, isolate, global_template)) {
@@ -114,7 +114,7 @@ bool Context::CreateGlobal(JSContext* cx, Isolate* isolate,
   // SetInstanceSlot(newGlobal, uint32_t(InstanceSlots::ContextSlot),
   //                 JS::PrivateValue(this));
 
-  pimpl_->global.init(isolate->Runtime());
+  pimpl_->global.init(isolate->RuntimeContext());
   pimpl_->global = newGlobal;
   JS::Value globalObj;
   globalObj.setObject(*newGlobal);
@@ -180,42 +180,53 @@ void Context::Exit() {
 
 void Context::SetEmbedderData(int idx, Local<Value> data) {
   assert(idx >= 0);
-  if (pimpl_->embedderData.length() <= static_cast<unsigned int>(idx) &&
-      !pimpl_->embedderData.resize(idx + 1)) {
+  if (static_cast<unsigned int>(idx * 2) >= pimpl_->embedderData.length() &&
+      !pimpl_->embedderData.resize((idx + 1) * 2)) {
     return;
   }
 
-  pimpl_->embedderData[idx].set(*GetValue(data));
+  pimpl_->embedderData[idx * 2].set(*GetValue(data));
 }
 
 Local<Value> Context::GetEmbedderData(int idx) {
   assert(idx >= 0);
-  if (static_cast<unsigned int>(idx) >= pimpl_->embedderData.length()) {
+  if (static_cast<unsigned int>(idx * 2) >= pimpl_->embedderData.length()) {
     return Local<Value>();
   }
 
   return Local<Value>::New(Isolate::GetCurrent(),
-                           GetV8Value(pimpl_->embedderData[idx]));
+                           GetV8Value(pimpl_->embedderData[idx * 2]));
 }
 
+// We encode each embedder data field into two embedderData indices in order
+// to be able to encode full 64-bit values.
 void Context::SetAlignedPointerInEmbedderData(int idx, void* data) {
   assert((reinterpret_cast<uintptr_t>(data) & 0x1) == 0);
   assert(idx >= 0);
-  if (static_cast<unsigned int>(idx) >= pimpl_->embedderData.length() &&
-      !pimpl_->embedderData.resize(idx + 1)) {
+  if (static_cast<unsigned int>(idx * 2) >= pimpl_->embedderData.length() &&
+      !pimpl_->embedderData.resize((idx + 1) * 2)) {
     return;
   }
 
-  pimpl_->embedderData[idx].set(JS::PrivateValue(data));
+  Isolate* isolate = Isolate::GetCurrent();
+  JSContext* cx = JSContextFromIsolate(isolate);
+  JS::RootedValue ptr1(cx), ptr2(cx);
+  CallbackToValues(data, &ptr1, &ptr2);
+  pimpl_->embedderData[idx * 2].set(ptr1);
+  pimpl_->embedderData[idx * 2 + 1].set(ptr2);
 }
 
 void* Context::GetAlignedPointerFromEmbedderData(int idx) {
   assert(idx >= 0);
-  if (static_cast<unsigned int>(idx) >= pimpl_->embedderData.length()) {
+  if (static_cast<unsigned int>(idx * 2) >= pimpl_->embedderData.length()) {
     return nullptr;
   }
 
-  return pimpl_->embedderData[idx].get().toPrivate();
+  Isolate* isolate = Isolate::GetCurrent();
+  JSContext* cx = JSContextFromIsolate(isolate);
+  JS::RootedValue ptr1(cx, pimpl_->embedderData[idx * 2].get());
+  JS::RootedValue ptr2(cx, pimpl_->embedderData[idx * 2 + 1].get());
+  return ValuesToCallback<void*>(ptr1, ptr2);
 }
 
 bool Context::Impl::RunMicrotasks() {

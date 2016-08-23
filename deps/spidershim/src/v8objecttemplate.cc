@@ -22,7 +22,7 @@
 
 #include "conversions.h"
 #include "v8local.h"
-#include "jsapi.h"
+#include "autojsapi.h"
 #include "jsfriendapi.h"
 #include "instanceslots.h"
 #include "accessor.h"
@@ -1251,7 +1251,11 @@ ObjectTemplate::InstanceClass* ObjectTemplate::GetInstanceClass(ObjectType objec
     instanceClass->ModifyClassOps().construct = CallOp;
   }
 
-  uint32_t internalFieldCount = static_cast<uint32_t>(InternalFieldCount());
+  // We need to allocate twice the number of internal fields since aligned
+  // pointers returned through GetAlignedPointerFromInternalField require
+  // two internal slots, therefore we allocate two slots for each internal
+  // field for simplicity.
+  uint32_t internalFieldCount = static_cast<uint32_t>(InternalFieldCount()) * 2;
 
   auto reservedSlots = internalFieldCount + uint32_t(InstanceSlots::NumSlots);
 

@@ -84,8 +84,7 @@ js::DisableExtraThreads()
 const JSSecurityCallbacks js::NullSecurityCallbacks = { };
 
 PerThreadData::PerThreadData(JSRuntime* runtime)
-  : PerThreadDataFriendFields(),
-    runtime_(runtime),
+  : runtime_(runtime),
 #ifdef JS_TRACE_LOGGING
     traceLogger(nullptr),
 #endif
@@ -141,9 +140,6 @@ JSRuntime::JSRuntime(JSRuntime* parentRuntime)
     profilerSampleBufferGen_(0),
     profilerSampleBufferLapCount_(1),
     wasmActivationStack_(nullptr),
-    asyncStackForNewActivations(this),
-    asyncCauseForNewActivations(nullptr),
-    asyncCallIsExplicit(false),
     entryMonitor(nullptr),
     noExecuteDebuggerTop(nullptr),
     parentRuntime(parentRuntime),
@@ -161,7 +157,6 @@ JSRuntime::JSRuntime(JSRuntime* parentRuntime)
     promiseRejectionTrackerCallback(nullptr),
     promiseRejectionTrackerCallbackData(nullptr),
 #ifdef DEBUG
-    exclusiveAccessOwner(nullptr),
     mainThreadHasExclusiveAccess(false),
 #endif
     numExclusiveThreads(0),
@@ -432,8 +427,6 @@ JSRuntime::destroyRuntime()
      */
     finishSelfHosting();
 
-    MOZ_ASSERT(!exclusiveAccessOwner);
-
     MOZ_ASSERT(!numExclusiveThreads);
     AutoLockForExclusiveAccess lock(this);
 
@@ -535,7 +528,6 @@ JSRuntime::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::Runtim
 
     rtSizes->gc.marker += gc.marker.sizeOfExcludingThis(mallocSizeOf);
     rtSizes->gc.nurseryCommitted += gc.nursery.sizeOfHeapCommitted();
-    rtSizes->gc.nurseryDecommitted += gc.nursery.sizeOfHeapDecommitted();
     rtSizes->gc.nurseryMallocedBuffers += gc.nursery.sizeOfMallocedBuffers(mallocSizeOf);
     gc.storeBuffer.addSizeOfExcludingThis(mallocSizeOf, &rtSizes->gc);
 }
@@ -606,26 +598,6 @@ InvokeInterruptCallback(JSContext* cx)
 }
 
 void
-JSRuntime::resetJitStackLimit()
-{
-    // Note that, for now, we use the untrusted limit for ion. This is fine,
-    // because it's the most conservative limit, and if we hit it, we'll bail
-    // out of ion into the interpreter, which will do a proper recursion check.
-#ifdef JS_SIMULATOR
-    jitStackLimit_ = jit::Simulator::StackLimit();
-#else
-    jitStackLimit_ = mainThread.nativeStackLimit[StackForUntrustedScript];
-#endif
-    jitStackLimitNoInterrupt_ = jitStackLimit_;
-}
-
-void
-JSRuntime::initJitStackLimit()
-{
-    resetJitStackLimit();
-}
-
-void
 JSRuntime::requestInterrupt(InterruptMode mode)
 {
     interrupt_ = true;
@@ -651,7 +623,7 @@ JSRuntime::handleInterrupt(JSContext* cx)
     MOZ_ASSERT(CurrentThreadCanAccessRuntime(cx->runtime()));
     if (interrupt_ || jitStackLimit_ == UINTPTR_MAX) {
         interrupt_ = false;
-        resetJitStackLimit();
+        cx->resetJitStackLimit();
         return InvokeInterruptCallback(cx);
     }
     return true;
@@ -889,57 +861,26 @@ js::CurrentThreadCanAccessZone(Zone* zone)
     return zone->usedByExclusiveThread;
 }
 
-#ifdef DEBUG
-
-void
-JSRuntime::assertCanLock(RuntimeLock which)
-{
-    // In the switch below, each case falls through to the one below it. None
-    // of the runtime locks are reentrant, and when multiple locks are acquired
-    // it must be done in the order below.
-    switch (which) {
-      case ExclusiveAccessLock:
-        MOZ_ASSERT(exclusiveAccessOwner != PR_GetCurrentThread());
-        MOZ_FALLTHROUGH;
-      case HelperThreadStateLock:
-        MOZ_FALLTHROUGH;
-      case GCLock:
-        break;
-      default:
-        MOZ_CRASH();
-    }
-}
-
-void
-js::AssertCurrentThreadCanLock(RuntimeLock which)
-{
-    PerThreadData* pt = TlsPerThreadData.get();
-    if (pt && pt->runtime_)
-        pt->runtime_->assertCanLock(which);
-}
-
-#endif // DEBUG
-
 JS_FRIEND_API(void)
-JS::UpdateJSRuntimeProfilerSampleBufferGen(JSRuntime* runtime, uint32_t generation,
+JS::UpdateJSContextProfilerSampleBufferGen(JSContext* cx, uint32_t generation,
                                            uint32_t lapCount)
 {
-    runtime->setProfilerSampleBufferGen(generation);
-    runtime->updateProfilerSampleBufferLapCount(lapCount);
+    cx->setProfilerSampleBufferGen(generation);
+    cx->updateProfilerSampleBufferLapCount(lapCount);
 }
 
 JS_FRIEND_API(bool)
-JS::IsProfilingEnabledForRuntime(JSRuntime* runtime)
+JS::IsProfilingEnabledForContext(JSContext* cx)
 {
-    MOZ_ASSERT(runtime);
-    return runtime->spsProfiler.enabled();
+    MOZ_ASSERT(cx);
+    return cx->spsProfiler.enabled();
 }
 
 JSRuntime::IonBuilderList&
 JSRuntime::ionLazyLinkList()
 {
     MOZ_ASSERT(TlsPerThreadData.get()->runtimeFromMainThread(),
-            "Should only be mutated by the main thread.");
+               "Should only be mutated by the main thread.");
     return ionLazyLinkList_;
 }
 

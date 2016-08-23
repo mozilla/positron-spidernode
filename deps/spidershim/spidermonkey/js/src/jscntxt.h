@@ -99,14 +99,13 @@ class ExclusiveContext : public ContextFriendFields,
     friend struct StackBaseShape;
     friend void JSScript::initCompartment(ExclusiveContext* cx);
     friend class jit::JitContext;
-    friend class Activation;
+
+    // runtime_ is private to hide it from JSContext. JSContext inherits from
+    // JSRuntime, so it's more efficient to use the base class.
+    JSRuntime* const runtime_;
 
     // The thread on which this context is running, if this is not a JSContext.
     HelperThread* helperThread_;
-
-    // Hide runtime_ from JSContext. JSContext inherits from JSRuntime, so it's
-    // more efficient to use |this|.
-    using ContextFriendFields::runtime_;
 
   public:
     enum ContextKind {
@@ -214,9 +213,9 @@ class ExclusiveContext : public ContextFriendFields,
     FreeOp* defaultFreeOp() { return runtime_->defaultFreeOp(); }
     void* contextAddressForJit() { return runtime_->unsafeContextFromAnyThread(); }
     void* runtimeAddressOfInterruptUint32() { return runtime_->addressOfInterruptUint32(); }
-    void* stackLimitAddress(StackKind kind) { return &runtime_->mainThread.nativeStackLimit[kind]; }
+    void* stackLimitAddress(StackKind kind) { return &nativeStackLimit[kind]; }
     void* stackLimitAddressForJitCode(StackKind kind);
-    uintptr_t stackLimit(StackKind kind) { return runtime_->mainThread.nativeStackLimit[kind]; }
+    uintptr_t stackLimit(StackKind kind) { return nativeStackLimit[kind]; }
     uintptr_t stackLimitForJitCode(StackKind kind);
     size_t gcSystemPageSize() { return gc::SystemPageSize(); }
     bool jitSupportsFloatingPoint() const { return runtime_->jitSupportsFloatingPoint; }
@@ -246,7 +245,9 @@ class ExclusiveContext : public ContextFriendFields,
      */
   protected:
     unsigned            enterCompartmentDepth_;
-    inline void setCompartment(JSCompartment* comp);
+
+    inline void setCompartment(JSCompartment* comp,
+                               const js::AutoLockForExclusiveAccess* maybeLock = nullptr);
   public:
     bool hasEnteredCompartment() const {
         return enterCompartmentDepth_ > 0;
@@ -257,9 +258,13 @@ class ExclusiveContext : public ContextFriendFields,
     }
 #endif
 
-    inline void enterCompartment(JSCompartment* c);
+    // If |c| or |oldCompartment| is the atoms compartment, the
+    // |exclusiveAccessLock| must be held.
+    inline void enterCompartment(JSCompartment* c,
+                                 const js::AutoLockForExclusiveAccess* maybeLock = nullptr);
     inline void enterNullCompartment();
-    inline void leaveCompartment(JSCompartment* oldCompartment);
+    inline void leaveCompartment(JSCompartment* oldCompartment,
+                                 const js::AutoLockForExclusiveAccess* maybeLock = nullptr);
 
     void setHelperThread(HelperThread* helperThread);
     HelperThread* helperThread() const { return helperThread_; }
@@ -267,8 +272,6 @@ class ExclusiveContext : public ContextFriendFields,
     // Threads with an ExclusiveContext may freely access any data in their
     // compartment and zone.
     JSCompartment* compartment() const {
-        MOZ_ASSERT_IF(runtime_->isAtomsCompartment(compartment_),
-                      runtime_->currentThreadHasExclusiveAccess());
         return compartment_;
     }
     JS::Zone* zone() const {
@@ -389,6 +392,8 @@ struct JSContext : public js::ExclusiveContext,
     /* Client opaque pointer. */
     void* data;
 
+    void resetJitStackLimit();
+
   public:
 
     /*
@@ -400,6 +405,8 @@ struct JSContext : public js::ExclusiveContext,
      * Note: if this ever shows up in a profile, just add caching!
      */
     JSVersion findVersion() const;
+
+    void initJitStackLimit();
 
     JS::ContextOptions& options() {
         return options_;
@@ -414,6 +421,28 @@ struct JSContext : public js::ExclusiveContext,
     bool jitIsBroken;
 
     void updateJITEnabled();
+
+    /*
+     * Youngest frame of a saved stack that will be picked up as an async stack
+     * by any new Activation, and is nullptr when no async stack should be used.
+     *
+     * The JS::AutoSetAsyncStackForNewCalls class can be used to set this.
+     *
+     * New activations will reset this to nullptr on construction after getting
+     * the current value, and will restore the previous value on destruction.
+     */
+    JS::PersistentRooted<js::SavedFrame*> asyncStackForNewActivations;
+
+    /*
+     * Value of asyncCause to be attached to asyncStackForNewActivations.
+     */
+    const char* asyncCauseForNewActivations;
+
+    /*
+     * True if the async call was explicitly requested, e.g. via
+     * callFunctionWithAsyncStack.
+     */
+    bool asyncCallIsExplicit;
 
     /* Whether this context has JS frames on the stack. */
     bool currentlyRunning() const;
@@ -450,7 +479,7 @@ struct JSContext : public js::ExclusiveContext,
     }
 
     void minorGC(JS::gcreason::Reason reason) {
-        gc.minorGC(this, reason);
+        gc.minorGC(reason);
     }
 
   public:
@@ -746,11 +775,7 @@ class MOZ_RAII AutoLockForExclusiveAccess
     void init(JSRuntime* rt) {
         runtime = rt;
         if (runtime->numExclusiveThreads) {
-            runtime->assertCanLock(ExclusiveAccessLock);
             runtime->exclusiveAccessLock.lock();
-#ifdef DEBUG
-            runtime->exclusiveAccessOwner = PR_GetCurrentThread();
-#endif
         } else {
             MOZ_ASSERT(!runtime->mainThreadHasExclusiveAccess);
 #ifdef DEBUG
@@ -774,10 +799,6 @@ class MOZ_RAII AutoLockForExclusiveAccess
     }
     ~AutoLockForExclusiveAccess() {
         if (runtime->numExclusiveThreads) {
-#ifdef DEBUG
-            MOZ_ASSERT(runtime->exclusiveAccessOwner == PR_GetCurrentThread());
-            runtime->exclusiveAccessOwner = nullptr;
-#endif
             runtime->exclusiveAccessLock.unlock();
         } else {
             MOZ_ASSERT(runtime->mainThreadHasExclusiveAccess);

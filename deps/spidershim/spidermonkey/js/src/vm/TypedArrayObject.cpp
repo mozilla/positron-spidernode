@@ -491,16 +491,16 @@ class TypedArrayObjectTemplate : public TypedArrayObject
             // If the buffer is for an inline typed object, the data pointer
             // may be in the nursery, so include a barrier to make sure this
             // object is updated if that typed object moves.
-            if (!IsInsideNursery(obj) && cx->runtime()->gc.nursery.isInside(buffer->dataPointerEither())) {
-                // Shared buffer data should never be nursery-allocated, so
-                // we need to fail here if isSharedMemory.  However, mmap()
-                // can place a SharedArrayRawBuffer up against the bottom end
-                // of the nursery, and a zero-length buffer will erroneously be
+            auto ptr = buffer->dataPointerEither();
+            if (!IsInsideNursery(obj) && cx->runtime()->gc.nursery.isInside(ptr)) {
+                // Shared buffer data should never be nursery-allocated, so we
+                // need to fail here if isSharedMemory.  However, mmap() can
+                // place a SharedArrayRawBuffer up against the bottom end of a
+                // nursery chunk, and a zero-length buffer will erroneously be
                 // perceived as being inside the nursery; sidestep that.
                 if (isSharedMemory) {
                     MOZ_ASSERT(buffer->byteLength() == 0 &&
-                               cx->runtime()->gc.nursery.start() ==
-                                   buffer->dataPointerEither().unwrapValue());
+                               (uintptr_t(ptr.unwrapValue()) & gc::ChunkMask) == 0);
                 } else {
                     cx->runtime()->gc.storeBuffer.putWholeCell(obj);
                 }
@@ -550,8 +550,9 @@ class TypedArrayObjectTemplate : public TypedArrayObject
     }
 
     static TypedArrayObject*
-    makeTemplateObject(JSContext* cx, uint32_t len)
+    makeTemplateObject(JSContext* cx, int32_t len)
     {
+        MOZ_ASSERT(len >= 0);
         size_t nbytes;
         MOZ_ALWAYS_TRUE(CalculateAllocSize<NativeType>(len, &nbytes));
         MOZ_ASSERT(nbytes < TypedArrayObject::SINGLETON_BYTE_LENGTH);
@@ -560,7 +561,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
         const Class* clasp = instanceClass();
         gc::AllocKind allocKind = !fitsInline
                                   ? GetGCObjectKind(clasp)
-                                  : AllocKindForLazyBuffer(len * sizeof(NativeType));
+                                  : AllocKindForLazyBuffer(nbytes);
         MOZ_ASSERT(CanBeFinalizedInBackground(allocKind, clasp));
         allocKind = GetBackgroundAllocKind(allocKind);
 
@@ -589,9 +590,10 @@ class TypedArrayObjectTemplate : public TypedArrayObject
     }
 
     static void
-    initTypedArraySlots(JSContext* cx, TypedArrayObject* tarray, uint32_t len,
+    initTypedArraySlots(JSContext* cx, TypedArrayObject* tarray, int32_t len,
                         void* buf, AllocKind allocKind)
     {
+        MOZ_ASSERT(len >= 0);
         tarray->setFixedSlot(TypedArrayObject::BUFFER_SLOT, NullValue());
         tarray->setFixedSlot(TypedArrayObject::LENGTH_SLOT, Int32Value(AssertedCast<int32_t>(len)));
         tarray->setFixedSlot(TypedArrayObject::BYTEOFFSET_SLOT, Int32Value(0));
@@ -621,11 +623,13 @@ class TypedArrayObjectTemplate : public TypedArrayObject
     }
 
     static TypedArrayObject*
-    makeTypedArrayWithTemplate(JSContext* cx, TypedArrayObject* templateObj, uint32_t len)
+    makeTypedArrayWithTemplate(JSContext* cx, TypedArrayObject* templateObj, int32_t len)
     {
         size_t nbytes;
-        if (!js::CalculateAllocSize<NativeType>(len, &nbytes))
+        if (len < 0 || !js::CalculateAllocSize<NativeType>(len, &nbytes)) {
+            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);
             return nullptr;
+        }
 
         bool fitsInline = nbytes <= INLINE_BUFFER_LIMIT;
 
@@ -634,7 +638,7 @@ class TypedArrayObjectTemplate : public TypedArrayObject
         const Class* clasp = templateObj->group()->clasp();
         gc::AllocKind allocKind = !fitsInline
                                   ? GetGCObjectKind(clasp)
-                                  : AllocKindForLazyBuffer(len * sizeof(NativeType));
+                                  : AllocKindForLazyBuffer(nbytes);
         MOZ_ASSERT(CanBeFinalizedInBackground(allocKind, clasp));
         allocKind = GetBackgroundAllocKind(allocKind);
         RootedObjectGroup group(cx, templateObj->group());
