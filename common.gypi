@@ -285,14 +285,6 @@
           'BUILDING_UV_SHARED=1',
         ],
       }],
-      [ 'OS=="linux"', {
-        'target_conditions': [
-          ['_type=="static_library"', {
-            'cflags': [ '-fPIC', ],
-            'ldflags': [ '-fPIC' ],
-          }],
-        ],
-      }],
       [ 'OS in "linux freebsd openbsd solaris aix"', {
         'cflags': [ '-pthread', ],
         'ldflags': [ '-pthread' ],
