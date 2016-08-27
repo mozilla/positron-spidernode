@@ -155,9 +155,16 @@ Isolate::Isolate() : pimpl_(new Impl()) {
   pimpl_->EnsureEternals(this);
 }
 
-Isolate::Isolate(void* cx_) : pimpl_(new Impl()) {
-  auto cx = (JSContext*)cx_;
-  pimpl_->cx = cx;
+Isolate::Isolate(JSContext* jsContext,
+                 JSObject* global,
+                 JSPrincipals* principals,
+                 JS::Value components,
+                 JS::Value services) : pimpl_(new Impl()) {
+  pimpl_->cx = jsContext;
+  pimpl_->chromeGlobal = global;
+  pimpl_->principals = principals;
+  pimpl_->components = components;
+  pimpl_->services = services;
   pimpl_->EnsurePersistents(this);
   pimpl_->EnsureEternals(this);
   if (!pimpl_->cx) {
@@ -169,7 +176,7 @@ Isolate::~Isolate() {
   assert(pimpl_->cx);
   assert(!sIsolateStack.get());
   // JS_SetInterruptCallback(pimpl_->cx, NULL);
-  // JS_DestroyContext(pimpl_->cx);
+  JS_DestroyContext(pimpl_->cx);
   delete pimpl_;
 }
 
@@ -181,8 +188,11 @@ Isolate* Isolate::New(const CreateParams& params) {
   return isolate;
 }
 
-Isolate* Isolate::New(void* jsContext) {
-  return new Isolate(jsContext);
+// TODO there should be a better way to do this, either by adding these to create params
+// or moving some of this code (such as setting components and services) to the positron
+// side of things.
+Isolate* Isolate::New(JSContext* jsContext, JSObject* global, JSPrincipals* principals, JS::Value components, JS::Value services) {
+  return new Isolate(jsContext, global, principals, components, services);
 }
 
 Isolate* Isolate::New() { return new Isolate(); }
@@ -620,7 +630,7 @@ Local<Object> Isolate::GetHiddenGlobal() {
     JS::RootedObject newGlobal(cx);
     JS::CompartmentOptions options;
     options.behaviors().setVersion(JSVERSION_LATEST);
-    newGlobal = JS_NewGlobalObject(cx, &globalClass, nullptr,
+    newGlobal = JS_NewGlobalObject(cx, &globalClass, pimpl_->principals,
                                    JS::FireOnNewGlobalHook, options);
     if (!newGlobal) {
       return Local<Object>();

@@ -22,6 +22,7 @@
 
 #include "v8.h"
 #include "v8context.h"
+#include "v8isolate.h"
 #include "v8local.h"
 #include "jsapi.h"
 #include "jsfriendapi.h"
@@ -85,40 +86,40 @@ Local<Context> Context::New(Isolate* isolate,
   return Local<Context>::New(isolate, context);
 }
 
-bool Context::CreateGlobal(JSContext* cx, Isolate* isolate,
-                           Local<ObjectTemplate> global_template) {
-  // if (global_template.IsEmpty()) {
-  //   global_template = ObjectTemplate::New(isolate);
-  // }
-
-  // Local<Object> prototype =
-  //   global_template->GetConstructor()
-  //                  ->GetProtoInstance(isolate->GetCurrentContext());
-  // if (prototype.IsEmpty()) {
-  //   return false;
-  // }
-  // Local<Object> global = global_template->NewInstance(prototype,
-  //                                                     ObjectTemplate::GlobalObject);
-  // if (global.IsEmpty()) {
-  //   return false;
-  // }
-
-  JS::Rooted<JSObject*> newGlobal(cx, JS::CurrentGlobalOrNull(cx));
-  if (!newGlobal) {
-      return false;
+bool Context::CreateGlobal(JSContext* cx, Isolate* isolate, Local<ObjectTemplate> global_template) {
+  if (global_template.IsEmpty()) {
+    global_template = ObjectTemplate::New(isolate);
   }
 
-  // JS::RootedObject newGlobal(cx, UnwrapProxyIfNeeded(GetObject(global)));
+  Local<Object> prototype =
+    global_template->GetConstructor()
+                   ->GetProtoInstance(isolate->GetCurrentContext());
+  if (prototype.IsEmpty()) {
+    return false;
+  }
+  Local<Object> global = global_template->NewInstance(prototype,
+                                                      ObjectTemplate::GlobalObject);
+  if (global.IsEmpty()) {
+    return false;
+  }
+
+  JS::RootedObject newGlobal(cx, UnwrapProxyIfNeeded(GetObject(global)));
   AutoJSAPI jsAPI(cx, newGlobal);
 
-  // SetInstanceSlot(newGlobal, uint32_t(InstanceSlots::ContextSlot),
-  //                 JS::PrivateValue(this));
+  SetInstanceSlot(newGlobal, uint32_t(InstanceSlots::ContextSlot),
+                  JS::PrivateValue(this));
 
-  pimpl_->global.init(isolate->Runtime());
+  JS::Rooted<JS::Value> componentsHandle(cx, isolate->pimpl_->components);
+  JS_SetProperty(cx, newGlobal, "Components", componentsHandle);
+  JS::Rooted<JS::Value> servicesHandle(cx, isolate->pimpl_->services);
+  JS_SetProperty(cx, newGlobal, "Services", servicesHandle);
+
+  pimpl_->global.init(isolate->RuntimeContext());
   pimpl_->global = newGlobal;
   JS::Value globalObj;
   globalObj.setObject(*newGlobal);
   HandleScope handleScope(isolate);
+
   pimpl_->globalObj.Reset(isolate,
       internal::Local<Object>::New(Isolate::GetCurrent(), globalObj));
 

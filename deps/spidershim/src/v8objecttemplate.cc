@@ -22,6 +22,7 @@
 
 #include "conversions.h"
 #include "v8local.h"
+#include "v8isolate.h"
 #include "jsapi.h"
 #include "jsfriendapi.h"
 #include "instanceslots.h"
@@ -1046,11 +1047,22 @@ Local<Object> ObjectTemplate::NewInstance(Local<Object> prototype,
   } else if (objectType == GlobalObject) {
     JS::CompartmentOptions options;
     options.behaviors().setVersion(JSVERSION_LATEST);
-    instanceObj = JS_NewGlobalObject(cx, instanceClass, nullptr,
+    instanceObj = JS_NewGlobalObject(cx, instanceClass, isolate->pimpl_->principals,
                                      JS::FireOnNewGlobalHook, options);
     if (!instanceObj) {
       return Local<Object>();
     }
+
+    // Copy over the private compartment data so cross compartment wrapper security
+    // checks work.
+    JSCompartment* chromeCompartment = js::GetObjectCompartment(isolate->pimpl_->chromeGlobal);
+    void* compartmentPrivate = JS_GetCompartmentPrivate(chromeCompartment);
+
+    JSCompartment* compartment = js::GetObjectCompartment(instanceObj);
+    JS_SetCompartmentPrivate(compartment, compartmentPrivate);
+
+    compartment = js::GetObjectCompartment(protoObj);
+    JS_SetCompartmentPrivate(compartment, compartmentPrivate);
 
     JSAutoCompartment ac(cx, instanceObj);
 
