@@ -965,8 +965,19 @@ def configure_spidermonkey(o):
   o['variables']['spidermonkey_obj_dir'] = options.spidermonkey_obj_dir if options.spidermonkey_obj_dir else './'
   sm_debug = options.external_spidermonkey_debug
   sm_release = options.external_spidermonkey_release
-  validate_spidermonkey_objdir(o, sm_debug, 'debug')
-  validate_spidermonkey_objdir(o, sm_release, 'release')
+
+  # Temporarily disable validation and hardcode values for the *_has_nss vars
+  # until we figure out if it's possible to build SpiderNode without requiring
+  # SpiderMonkey to be built first.
+  # validate_spidermonkey_objdir(o, sm_debug, 'debug')
+  # validate_spidermonkey_objdir(o, sm_release, 'release')
+  if sm_debug != "":
+    o['variables']['external_spidermonkey_debug_has_nss'] = 1
+    o['variables']['external_spidermonkey_debug_has_nspr'] = 1
+  if sm_release != "":
+    o['variables']['external_spidermonkey_release_has_nss'] = 1
+    o['variables']['external_spidermonkey_release_has_nspr'] = 1
+
   if options.debug and sm_release != "" and sm_debug == "":
       raise Exception('--debug passed without specifying --with-external-spidermonkey-debug')
   elif sm_debug != "" and sm_release == "":
