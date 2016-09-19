@@ -161,20 +161,18 @@ void Context::Enter() {
   assert(pimpl_->global);
   JSContext* cx = JSContextFromIsolate(Isolate::GetCurrent());
   JS_BeginRequest(cx);
-  
-  // Ignore the old compartment because it should be the compartment for
-  // isolate->currentContexts.top()
-  JS_EnterCompartment(cx, pimpl_->global);
+  pimpl_->oldCompartments.push(JS_EnterCompartment(cx, pimpl_->global));
   GetIsolate()->PushCurrentContext(this);
 }
 
 void Context::Exit() {
   assert(pimpl_);
-  Context* ctx = GetIsolate()->PopCurrentContext();
-  JSCompartment* compartment =
-    ctx ? js::GetObjectCompartment(ctx->pimpl_->global) : nullptr;
+
+  GetIsolate()->PopCurrentContext();
+
   JSContext* cx = JSContextFromIsolate(Isolate::GetCurrent());
-  JS_LeaveCompartment(cx, compartment);
+  JS_LeaveCompartment(cx, pimpl_->oldCompartments.top());
+  pimpl_->oldCompartments.pop();
   JS_EndRequest(cx);
 }
 

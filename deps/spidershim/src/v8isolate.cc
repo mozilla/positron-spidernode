@@ -262,8 +262,9 @@ void Isolate::PushCurrentContext(Context* context) {
 
 Context* Isolate::PopCurrentContext() {
   assert(pimpl_);
+  Context* ctx = pimpl_->currentContexts.top();
   pimpl_->currentContexts.pop();
-  return pimpl_->currentContexts.empty() ? nullptr : pimpl_->currentContexts.top();
+  return ctx;
 }
 
 Local<Context> Isolate::GetCurrentContext() {
