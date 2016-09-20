@@ -1064,6 +1064,8 @@ Local<Object> ObjectTemplate::NewInstance(Local<Object> prototype,
     compartment = js::GetObjectCompartment(protoObj);
     JS_SetCompartmentPrivate(compartment, compartmentPrivate);
 
+    JS_SetPrivate(instanceObj, js::GetObjectPrivate(isolate->pimpl_->chromeGlobal));
+    
     JSAutoCompartment ac(cx, instanceObj);
 
     if (!JS_InitStandardClasses(cx, instanceObj) ||
@@ -1273,6 +1275,7 @@ ObjectTemplate::InstanceClass* ObjectTemplate::GetInstanceClass(ObjectType objec
     // This also means that any access to these slots must account for this
     // difference between the global and normal objects.
     flags |= JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(reservedSlots - JSCLASS_GLOBAL_APPLICATION_SLOTS);
+    flags |= JSCLASS_HAS_PRIVATE;
     instanceClass->ModifyClassOps().trace = JS_GlobalObjectTraceHook;
   } else {
     flags |= JSCLASS_HAS_RESERVED_SLOTS(reservedSlots);
