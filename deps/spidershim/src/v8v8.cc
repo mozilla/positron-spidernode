@@ -40,7 +40,7 @@ bool V8::Initialize() {
     return false;
   }
   return v8::internal::InitializeIsolate() &&
-         v8::internal::InitializeHandleScope() /* && JS_Init() */;
+         v8::internal::InitializeHandleScope();
 }
 
 bool V8::Dispose() {
