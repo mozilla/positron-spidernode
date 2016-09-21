@@ -158,13 +158,11 @@ Isolate::Isolate() : pimpl_(new Impl()) {
 Isolate::Isolate(JSContext* jsContext,
                  JSObject* global,
                  JSPrincipals* principals,
-                 JS::Value components,
-                 JS::Value services) : pimpl_(new Impl()) {
+                 JS::Value components) : pimpl_(new Impl()) {
   pimpl_->cx = jsContext;
   pimpl_->chromeGlobal = global;
   pimpl_->principals = principals;
   pimpl_->components = components;
-  pimpl_->services = services;
   pimpl_->EnsurePersistents(this);
   pimpl_->EnsureEternals(this);
   if (!pimpl_->cx) {
@@ -189,10 +187,10 @@ Isolate* Isolate::New(const CreateParams& params) {
 }
 
 // TODO there should be a better way to do this, either by adding these to create params
-// or moving some of this code (such as setting components and services) to the positron
+// or moving some of this code (such as setting components) to the positron
 // side of things.
-Isolate* Isolate::New(JSContext* jsContext, JSObject* global, JSPrincipals* principals, JS::Value components, JS::Value services) {
-  return new Isolate(jsContext, global, principals, components, services);
+Isolate* Isolate::New(JSContext* jsContext, JSObject* global, JSPrincipals* principals, JS::Value components) {
+  return new Isolate(jsContext, global, principals, components);
 }
 
 Isolate* Isolate::New() { return new Isolate(); }

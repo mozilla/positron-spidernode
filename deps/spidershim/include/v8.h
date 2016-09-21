@@ -2606,8 +2606,7 @@ class V8_EXPORT Isolate {
   static Isolate* New(JSContext* jsContext,
                       JSObject* global,
                       JSPrincipals* principals,
-                      JS::Value components,
-                      JS::Value services);
+                      JS::Value components);
   static Isolate* GetCurrent();
   typedef bool (*AbortOnUncaughtExceptionCallback)(Isolate*);
   void SetAbortOnUncaughtExceptionCallback(
@@ -2701,8 +2700,7 @@ class V8_EXPORT Isolate {
   Isolate(JSContext* jsContext,
           JSObject* global,
           JSPrincipals* principals,
-          JS::Value components,
-          JS::Value services);
+          JS::Value components);
 
   void AddContext(Context* context);
   void PushCurrentContext(Context* context);

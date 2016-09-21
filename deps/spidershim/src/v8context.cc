@@ -111,8 +111,6 @@ bool Context::CreateGlobal(JSContext* cx, Isolate* isolate, Local<ObjectTemplate
 
   JS::Rooted<JS::Value> componentsHandle(cx, isolate->pimpl_->components);
   JS_SetProperty(cx, newGlobal, "Components", componentsHandle);
-  JS::Rooted<JS::Value> servicesHandle(cx, isolate->pimpl_->services);
-  JS_SetProperty(cx, newGlobal, "Services", servicesHandle);
 
   pimpl_->global.init(isolate->RuntimeContext());
   pimpl_->global = newGlobal;

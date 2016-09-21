@@ -1065,7 +1065,7 @@ Local<Object> ObjectTemplate::NewInstance(Local<Object> prototype,
     JS_SetCompartmentPrivate(compartment, compartmentPrivate);
 
     JS_SetPrivate(instanceObj, js::GetObjectPrivate(isolate->pimpl_->chromeGlobal));
-    
+
     JSAutoCompartment ac(cx, instanceObj);
 
     if (!JS_InitStandardClasses(cx, instanceObj) ||
