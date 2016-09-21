@@ -22,6 +22,7 @@
 
 #include "v8.h"
 #include "v8context.h"
+#include "v8isolate.h"
 #include "v8local.h"
 #include "autojsapi.h"
 #include "jsfriendapi.h"
@@ -85,40 +86,38 @@ Local<Context> Context::New(Isolate* isolate,
   return Local<Context>::New(isolate, context);
 }
 
-bool Context::CreateGlobal(JSContext* cx, Isolate* isolate,
-                           Local<ObjectTemplate> global_template) {
-  // if (global_template.IsEmpty()) {
-  //   global_template = ObjectTemplate::New(isolate);
-  // }
-
-  // Local<Object> prototype =
-  //   global_template->GetConstructor()
-  //                  ->GetProtoInstance(isolate->GetCurrentContext());
-  // if (prototype.IsEmpty()) {
-  //   return false;
-  // }
-  // Local<Object> global = global_template->NewInstance(prototype,
-  //                                                     ObjectTemplate::GlobalObject);
-  // if (global.IsEmpty()) {
-  //   return false;
-  // }
-
-  JS::Rooted<JSObject*> newGlobal(cx, JS::CurrentGlobalOrNull(cx));
-  if (!newGlobal) {
-      return false;
+bool Context::CreateGlobal(JSContext* cx, Isolate* isolate, Local<ObjectTemplate> global_template) {
+  if (global_template.IsEmpty()) {
+    global_template = ObjectTemplate::New(isolate);
   }
 
-  // JS::RootedObject newGlobal(cx, UnwrapProxyIfNeeded(GetObject(global)));
+  Local<Object> prototype =
+    global_template->GetConstructor()
+                   ->GetProtoInstance(isolate->GetCurrentContext());
+  if (prototype.IsEmpty()) {
+    return false;
+  }
+  Local<Object> global = global_template->NewInstance(prototype,
+                                                      ObjectTemplate::GlobalObject);
+  if (global.IsEmpty()) {
+    return false;
+  }
+
+  JS::RootedObject newGlobal(cx, UnwrapProxyIfNeeded(GetObject(global)));
   AutoJSAPI jsAPI(cx, newGlobal);
 
-  // SetInstanceSlot(newGlobal, uint32_t(InstanceSlots::ContextSlot),
-  //                 JS::PrivateValue(this));
+  SetInstanceSlot(newGlobal, uint32_t(InstanceSlots::ContextSlot),
+                  JS::PrivateValue(this));
+
+  JS::Rooted<JS::Value> componentsHandle(cx, isolate->pimpl_->components);
+  JS_SetProperty(cx, newGlobal, "Components", componentsHandle);
 
   pimpl_->global.init(isolate->RuntimeContext());
   pimpl_->global = newGlobal;
   JS::Value globalObj;
   globalObj.setObject(*newGlobal);
   HandleScope handleScope(isolate);
+
   pimpl_->globalObj.Reset(isolate,
       internal::Local<Object>::New(Isolate::GetCurrent(), globalObj));
 
@@ -161,20 +160,18 @@ void Context::Enter() {
   assert(pimpl_->global);
   JSContext* cx = JSContextFromIsolate(Isolate::GetCurrent());
   JS_BeginRequest(cx);
-  
-  // Ignore the old compartment because it should be the compartment for
-  // isolate->currentContexts.top()
-  JS_EnterCompartment(cx, pimpl_->global);
+  pimpl_->oldCompartments.push(JS_EnterCompartment(cx, pimpl_->global));
   GetIsolate()->PushCurrentContext(this);
 }
 
 void Context::Exit() {
   assert(pimpl_);
-  Context* ctx = GetIsolate()->PopCurrentContext();
-  JSCompartment* compartment =
-    ctx ? js::GetObjectCompartment(ctx->pimpl_->global) : nullptr;
+
+  GetIsolate()->PopCurrentContext();
+
   JSContext* cx = JSContextFromIsolate(Isolate::GetCurrent());
-  JS_LeaveCompartment(cx, compartment);
+  JS_LeaveCompartment(cx, pimpl_->oldCompartments.top());
+  pimpl_->oldCompartments.pop();
   JS_EndRequest(cx);
 }
 

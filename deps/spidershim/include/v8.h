@@ -56,12 +56,14 @@ class AutoJSAPI;
 struct JSRuntime;
 struct JSContext;
 class JSObject;
+struct JSPrincipals;
 class JSScript;
 class V8Engine;
 struct JSClass;
 
 namespace JS {
 class Symbol;
+class Value;
 }
 
 namespace v8 {
@@ -2601,7 +2603,10 @@ class V8_EXPORT Isolate {
 
   static Isolate* New(const CreateParams& params);
   static Isolate* New();
-  static Isolate* New(void* jsContext);
+  static Isolate* New(JSContext* jsContext,
+                      JSObject* global,
+                      JSPrincipals* principals,
+                      JS::Value components);
   static Isolate* GetCurrent();
   typedef bool (*AbortOnUncaughtExceptionCallback)(Isolate*);
   void SetAbortOnUncaughtExceptionCallback(
@@ -2692,7 +2697,10 @@ class V8_EXPORT Isolate {
 
  private:
   Isolate();
-  Isolate(void*);
+  Isolate(JSContext* jsContext,
+          JSObject* global,
+          JSPrincipals* principals,
+          JS::Value components);
 
   void AddContext(Context* context);
   void PushCurrentContext(Context* context);
@@ -2702,6 +2710,7 @@ class V8_EXPORT Isolate {
   void AddUnboundScript(UnboundScript* script);
   friend class ::AutoJSAPI;
   friend class Context;
+  friend class ObjectTemplate;
   friend class MicrotasksScope;
   friend class StackFrame;
   friend class StackTrace;

@@ -156,9 +156,14 @@ Isolate::Isolate() : pimpl_(new Impl()) {
   pimpl_->EnsureEternals(this);
 }
 
-Isolate::Isolate(void* cx_) : pimpl_(new Impl()) {
-  auto cx = (JSContext*)cx_;
-  pimpl_->cx = cx;
+Isolate::Isolate(JSContext* jsContext,
+                 JSObject* global,
+                 JSPrincipals* principals,
+                 JS::Value components) : pimpl_(new Impl()) {
+  pimpl_->cx = jsContext;
+  pimpl_->chromeGlobal = global;
+  pimpl_->principals = principals;
+  pimpl_->components = components;
   pimpl_->EnsurePersistents(this);
   pimpl_->EnsureEternals(this);
   if (!pimpl_->cx) {
@@ -170,7 +175,7 @@ Isolate::~Isolate() {
   assert(pimpl_->cx);
   assert(!sIsolateStack.get());
   // JS_SetInterruptCallback(pimpl_->cx, NULL);
-  // JS_DestroyContext(pimpl_->cx);
+  JS_DestroyContext(pimpl_->cx);
   delete pimpl_;
 }
 
@@ -182,8 +187,11 @@ Isolate* Isolate::New(const CreateParams& params) {
   return isolate;
 }
 
-Isolate* Isolate::New(void* jsContext) {
-  return new Isolate(jsContext);
+// TODO there should be a better way to do this, either by adding these to create params
+// or moving some of this code (such as setting components) to the positron
+// side of things.
+Isolate* Isolate::New(JSContext* jsContext, JSObject* global, JSPrincipals* principals, JS::Value components) {
+  return new Isolate(jsContext, global, principals, components);
 }
 
 Isolate* Isolate::New() { return new Isolate(); }
@@ -263,8 +271,9 @@ void Isolate::PushCurrentContext(Context* context) {
 
 Context* Isolate::PopCurrentContext() {
   assert(pimpl_);
+  Context* ctx = pimpl_->currentContexts.top();
   pimpl_->currentContexts.pop();
-  return pimpl_->currentContexts.empty() ? nullptr : pimpl_->currentContexts.top();
+  return ctx;
 }
 
 Local<Context> Isolate::GetCurrentContext() {
@@ -618,7 +627,7 @@ Local<Object> Isolate::GetHiddenGlobal() {
     JS::RootedObject newGlobal(cx);
     JS::CompartmentOptions options;
     options.behaviors().setVersion(JSVERSION_LATEST);
-    newGlobal = JS_NewGlobalObject(cx, &globalClass, nullptr,
+    newGlobal = JS_NewGlobalObject(cx, &globalClass, pimpl_->principals,
                                    JS::FireOnNewGlobalHook, options);
     if (!newGlobal) {
       return Local<Object>();
