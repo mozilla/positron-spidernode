@@ -23,7 +23,7 @@
 #include <list>
 
 #include "v8.h"
-#include "jsapi.h"
+#include "autojsapi.h"
 #include "js/GCPolicyAPI.h"
 
 namespace v8 {
@@ -71,6 +71,7 @@ template <class T>
 class RootedBase<v8::internal::GCList<T>>
     : public v8::internal::MutableGCListOperations<
           JS::Rooted<v8::internal::GCList<T>>, T> {};
+
 template <class T>
 class PersistentRootedBase<v8::internal::GCList<T>>
     : public v8::internal::MutableGCListOperations<

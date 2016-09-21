@@ -22,7 +22,7 @@
 #include "v8conversions.h"
 #include "conversions.h"
 #include "v8local.h"
-#include "jsapi.h"
+#include "autojsapi.h"
 #include "jsfriendapi.h"
 #include "js/Conversions.h"
 
@@ -129,7 +129,7 @@ void ArrayBuffer::Neuter() {
   JSContext* cx = JSContextFromIsolate(Isolate::GetCurrent());
   JS::RootedObject obj(cx, GetObject(this));
   AutoJSAPI jsAPI(cx, obj);
-  JS_DetachArrayBuffer(cx, obj, KeepData);
+  JS_DetachArrayBuffer(cx, obj);
 }
 
 auto ArrayBuffer::Externalize() -> Contents {

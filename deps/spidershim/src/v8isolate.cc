@@ -35,11 +35,13 @@
 #include "v8isolate.h"
 #include "v8local.h"
 #include "instanceslots.h"
-#include "jsapi.h"
+#include "autojsapi.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/ThreadLocal.h"
 
 namespace v8 {
+
+uintptr_t Isolate::sStackSize = 128 * sizeof(size_t) * 1024;
 
 HeapProfiler dummyHeapProfiler;
 CpuProfiler dummyCpuProfiler;
@@ -129,10 +131,9 @@ Isolate::Isolate() : pimpl_(new Impl()) {
     MOZ_CRASH("Creating the JS Runtime failed!");
   }
   JS::SetWarningReporter(pimpl_->cx, Impl::WarningReporter);
-  const size_t defaultStackQuota = 128 * sizeof(size_t) * 1024;
   JS_SetGCParameter(pimpl_->cx, JSGC_MODE, JSGC_MODE_INCREMENTAL);
   JS_SetGCParameter(pimpl_->cx, JSGC_MAX_BYTES, 0xffffffff);
-  JS_SetNativeStackQuota(pimpl_->cx, defaultStackQuota);
+  JS_SetNativeStackQuota(pimpl_->cx, sStackSize);
   JS_SetDefaultLocale(pimpl_->cx, "UTF-8");
 
 #ifndef DEBUG
@@ -425,8 +426,6 @@ void Isolate::RemoveGCEpilogueCallback(GCCallback callback) {
 void Isolate::RequestGarbageCollectionForTesting(GarbageCollectionType type) {
   JS_GC(pimpl_->cx);
 }
-
-JSRuntime* Isolate::Runtime() const { return JS_GetRuntime(pimpl_->cx); }
 
 JSContext* Isolate::RuntimeContext() const { return pimpl_->cx; }
 

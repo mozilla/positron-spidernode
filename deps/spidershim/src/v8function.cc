@@ -23,7 +23,7 @@
 #include "v8conversions.h"
 #include "v8local.h"
 #include "v8trycatch.h"
-#include "jsapi.h"
+#include "autojsapi.h"
 #include "jsfriendapi.h"
 #include "js/Conversions.h"
 #include "accessor.h"
@@ -350,7 +350,11 @@ MaybeLocal<Function> Function::New(Local<Context> context,
     return MaybeLocal<Function>();
   }
   if (!templ.IsEmpty()) {
-    js::SetFunctionNativeReserved(funobj, 0, *GetValue(*templ));
+    JS::RootedValue templVal(cx, *GetValue(templ));
+    if (!JS_WrapValue(cx, &templVal)) {
+      return MaybeLocal<Function>();
+    }
+    js::SetFunctionNativeReserved(funobj, 0, templVal);
   } else {
     js::SetFunctionNativeReserved(funobj, 0, JS::UndefinedValue());
   }
