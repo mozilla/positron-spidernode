@@ -2550,6 +2550,8 @@ class V8_EXPORT ResourceConstraints {
                          uint64_t virtual_memory_limit) {}
 };
 
+typedef void* (CreateCompartmentPrivateCallback)(JSObject* aGlobal);
+
 class V8_EXPORT Isolate {
  public:
   struct CreateParams {
@@ -2606,7 +2608,8 @@ class V8_EXPORT Isolate {
   static Isolate* New(JSContext* jsContext,
                       JSObject* global,
                       JSPrincipals* principals,
-                      JS::Value components);
+                      JS::Value components,
+                      CreateCompartmentPrivateCallback createCompartmentPrivateCallback);
   static Isolate* GetCurrent();
   typedef bool (*AbortOnUncaughtExceptionCallback)(Isolate*);
   void SetAbortOnUncaughtExceptionCallback(
@@ -2700,7 +2703,8 @@ class V8_EXPORT Isolate {
   Isolate(JSContext* jsContext,
           JSObject* global,
           JSPrincipals* principals,
-          JS::Value components);
+          JS::Value components,
+          CreateCompartmentPrivateCallback createCompartmentPrivateCallback);
 
   void AddContext(Context* context);
   void PushCurrentContext(Context* context);

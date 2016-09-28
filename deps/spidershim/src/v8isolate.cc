@@ -159,11 +159,13 @@ Isolate::Isolate() : pimpl_(new Impl()) {
 Isolate::Isolate(JSContext* jsContext,
                  JSObject* global,
                  JSPrincipals* principals,
-                 JS::Value components) : pimpl_(new Impl()) {
+                 JS::Value components,
+                 CreateCompartmentPrivateCallback createCompartmentPrivateCallback) : pimpl_(new Impl()) {
   pimpl_->cx = jsContext;
   pimpl_->chromeGlobal = global;
   pimpl_->principals = principals;
   pimpl_->components = components;
+  pimpl_->createCompartmentPrivateCallback = createCompartmentPrivateCallback;
   pimpl_->EnsurePersistents(this);
   pimpl_->EnsureEternals(this);
   if (!pimpl_->cx) {
@@ -174,8 +176,11 @@ Isolate::Isolate(JSContext* jsContext,
 Isolate::~Isolate() {
   assert(pimpl_->cx);
   assert(!sIsolateStack.get());
-  // JS_DisableInterruptCallback(pimpl_->cx);
-  JS_DestroyContext(pimpl_->cx);
+  // Gecko handles destroying the context.
+  if (!pimpl_->chromeGlobal) {
+    JS_DisableInterruptCallback(pimpl_->cx);
+    JS_DestroyContext(pimpl_->cx);
+  }
   delete pimpl_;
 }
 
@@ -190,8 +195,8 @@ Isolate* Isolate::New(const CreateParams& params) {
 // TODO there should be a better way to do this, either by adding these to create params
 // or moving some of this code (such as setting components) to the positron
 // side of things.
-Isolate* Isolate::New(JSContext* jsContext, JSObject* global, JSPrincipals* principals, JS::Value components) {
-  return new Isolate(jsContext, global, principals, components);
+Isolate* Isolate::New(JSContext* jsContext, JSObject* global, JSPrincipals* principals, JS::Value components, CreateCompartmentPrivateCallback createCompartmentPrivateCallback) {
+  return new Isolate(jsContext, global, principals, components, createCompartmentPrivateCallback);
 }
 
 Isolate* Isolate::New() { return new Isolate(); }

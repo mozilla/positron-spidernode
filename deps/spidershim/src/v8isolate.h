@@ -76,6 +76,7 @@ struct Isolate::Impl {
   JSObject* chromeGlobal;
   JSPrincipals* principals;
   JS::Value components;
+  CreateCompartmentPrivateCallback* createCompartmentPrivateCallback;
 
   bool serviceInterrupt;
   bool terminatingExecution;

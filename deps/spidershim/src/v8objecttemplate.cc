@@ -1056,14 +1056,13 @@ Local<Object> ObjectTemplate::NewInstance(Local<Object> prototype,
 
     // Copy over the private compartment data so cross compartment wrapper security
     // checks work.
-    JSCompartment* chromeCompartment = js::GetObjectCompartment(isolate->pimpl_->chromeGlobal);
-    void* compartmentPrivate = JS_GetCompartmentPrivate(chromeCompartment);
+    JSCompartment* instanceCompartment = js::GetObjectCompartment(instanceObj);
+    JS_SetCompartmentPrivate(instanceCompartment, (isolate->pimpl_->createCompartmentPrivateCallback)(isolate->pimpl_->chromeGlobal));
 
-    JSCompartment* compartment = js::GetObjectCompartment(instanceObj);
-    JS_SetCompartmentPrivate(compartment, compartmentPrivate);
-
-    compartment = js::GetObjectCompartment(protoObj);
-    JS_SetCompartmentPrivate(compartment, compartmentPrivate);
+    JSCompartment* protoCompartment = js::GetObjectCompartment(protoObj);
+    if (!JS_GetCompartmentPrivate(protoCompartment)) {
+      JS_SetCompartmentPrivate(protoCompartment, (isolate->pimpl_->createCompartmentPrivateCallback)(isolate->pimpl_->chromeGlobal));
+    }
 
     JS_SetPrivate(instanceObj, js::GetObjectPrivate(isolate->pimpl_->chromeGlobal));
 
