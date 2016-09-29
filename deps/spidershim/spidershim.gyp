@@ -28,7 +28,6 @@
       'include_dirs': [
         'include',
         '<(SHARED_INTERMEDIATE_DIR)',
-        '<(spidermonkey_obj_dir)/dist/include',
       ],
       'conditions': [
         [ 'target_arch=="ia32"', { 'defines': [ '__i386__=1' ] } ],
@@ -55,32 +54,10 @@
         'include_dirs': [
           'include',
         ],
-        'libraries': [
-          '-lspidershim',
-          '-lz',
-          '<(spidermonkey_obj_dir)/js/src/<(STATIC_LIB_PREFIX)js_static<(STATIC_LIB_SUFFIX)',
-          '<(spidermonkey_obj_dir)/dist/lib/<(SHARED_LIB_PREFIX)nss3<(SHARED_LIB_SUFFIX)',
-
-        ],
-        'conditions': [
-          [ 'target_arch=="arm"', {
-            'defines': [ '__arm__=1' ]
-          }],
-          ['OS == "linux"', {
-            'libraries': [
-              '-ldl',
-              '-lzlib',
-              '-lrt',
-              '<(spidermonkey_obj_dir)/mozglue/build/<(STATIC_LIB_PREFIX)mozglue<(STATIC_LIB_SUFFIX)',
-            ],
-          }],
-          ['OS == "mac"', {
-            'libraries': [
-              '<(spidermonkey_obj_dir)/mozglue/build/<(SHARED_LIB_PREFIX)mozglue<(SHARED_LIB_SUFFIX)',
-            ],
-          }],
-        ],
         'library_dirs': [ '<(PRODUCT_DIR)' ],
+        'libraries': [
+            '-lspidershim',
+        ],
       },
 
       'sources': [

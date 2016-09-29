@@ -86,7 +86,8 @@ Local<Context> Context::New(Isolate* isolate,
   return Local<Context>::New(isolate, context);
 }
 
-bool Context::CreateGlobal(JSContext* cx, Isolate* isolate, Local<ObjectTemplate> global_template) {
+bool Context::CreateGlobal(JSContext* cx, Isolate* isolate,
+                           Local<ObjectTemplate> global_template) {
   if (global_template.IsEmpty()) {
     global_template = ObjectTemplate::New(isolate);
   }
