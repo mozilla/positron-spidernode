@@ -1,8 +1,4 @@
 {
-  'variables': {
-    'external_spidermonkey_debug%': '<(external_spidermonkey_release)',
-  },
-
   'targets': [
     {
       'target_name': 'spidermonkey',

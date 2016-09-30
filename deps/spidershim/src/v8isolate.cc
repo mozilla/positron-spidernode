@@ -274,7 +274,7 @@ void Isolate::PushCurrentContext(Context* context) {
   pimpl_->currentContexts.push(context);
 }
 
-Context* Isolate::PopCurrentContext() {
+void Isolate::PopCurrentContext() {
   assert(pimpl_);
   Context* ctx = pimpl_->currentContexts.top();
   pimpl_->currentContexts.pop();
@@ -641,6 +641,9 @@ Local<Object> Isolate::GetHiddenGlobal() {
     if (!JS_InitStandardClasses(cx, newGlobal)) {
       return Local<Object>();
     }
+    SetInstanceSlot(newGlobal, uint32_t(InstanceSlots::ContextSlot),
+                    JS::UndefinedHandleValue);
+
     Local<Object> global =
       internal::Local<Object>::New(this, JS::ObjectValue(*newGlobal));
     pimpl_->hiddenGlobal.Reset(this, global);
