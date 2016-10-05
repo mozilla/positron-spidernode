@@ -20,22 +20,25 @@
               '<(external_spidermonkey_release)/config/external/icu/data/icudata.o',
             ]},
             'conditions': [
-              # Normally we'd use libraries here, but gyp doesn't allow us,
-              # so we use ldflags instead.
-              ['OS == "linux" and external_spidermonkey_release_has_nspr == 1', {
+              ['OS == "linux" and external_spidermonkey_has_nspr == 1', {
                 'library_dirs': [
                   '<(external_spidermonkey_release)/config/external/nspr/pr',
                 ],
               }],
-              ['OS == "mac"', {
-                'xcode_settings': { 'OTHER_LDFLAGS': [
-                  '<(external_spidermonkey_release)/dist/bin/<(SHARED_LIB_PREFIX)mozglue<(SHARED_LIB_SUFFIX)',
-                ]},
-              }],
-              ['OS == "mac" and external_spidermonkey_release_has_nspr == 1', {
-                'xcode_settings': { 'OTHER_LDFLAGS': [
-                  '<(external_spidermonkey_release)/dist/lib/<(SHARED_LIB_PREFIX)nspr4<(SHARED_LIB_SUFFIX)',
-                ]},
+              ['OS == "mac" and external_spidermonkey_has_nspr == 1', {
+                # On Mac, MOZ_FOLD_LIBS is defined by default, and NSPR is
+                # folded into NSS, so dist/lib/libnspr4.dylib is just a link
+                # to config/external/nss/libnss3.dylib, and we would be more
+                # precise to specify config/external/nss as the library dir
+                # and -lnss3 as the library.
+                #
+                # But specifying dist/lib and -lnspr4 is simpler and accounts
+                # for the possibility that someone builds external SpiderMonkey
+                # without MOZ_FOLD_LIBS.
+                #
+                'library_dirs': [
+                  '<(external_spidermonkey_release)/dist/lib',
+                ],
               }],
             ],
           },
@@ -54,22 +57,25 @@
               '<(external_spidermonkey_debug)/config/external/icu/data/icudata.o',
             ]},
             'conditions': [
-              # Normally we'd use libraries here, but gyp doesn't allow us,
-              # so we use ldflags instead.
-              ['OS == "linux" and external_spidermonkey_debug_has_nspr == 1', {
+              ['OS == "linux" and external_spidermonkey_has_nspr == 1', {
                 'library_dirs': [
                   '<(external_spidermonkey_debug)/config/external/nspr/pr',
                 ],
               }],
-              ['OS == "mac"', {
-                'xcode_settings': { 'OTHER_LDFLAGS': [
-                  '<(external_spidermonkey_debug)/dist/bin/<(SHARED_LIB_PREFIX)mozglue<(SHARED_LIB_SUFFIX)',
-                ]},
-              }],
-              ['OS == "mac" and external_spidermonkey_debug_has_nspr == 1', {
-                'xcode_settings': { 'OTHER_LDFLAGS': [
-                  '<(external_spidermonkey_debug)/dist/lib/<(SHARED_LIB_PREFIX)nspr4<(SHARED_LIB_SUFFIX)',
-                ]},
+              ['OS == "mac" and external_spidermonkey_has_nspr == 1', {
+                # On Mac, MOZ_FOLD_LIBS is defined by default, and NSPR is
+                # folded into NSS, so dist/lib/libnspr4.dylib is just a link
+                # to config/external/nss/libnss3.dylib, and we would be more
+                # precise to specify config/external/nss as the library dir
+                # and -lnss3 as the library.
+                #
+                # But specifying dist/lib and -lnspr4 is simpler and accounts
+                # for the possibility that someone builds external SpiderMonkey
+                # without MOZ_FOLD_LIBS.
+                #
+                'library_dirs': [
+                  '<(external_spidermonkey_debug)/dist/lib',
+                ],
               }],
             ],
           },
@@ -77,6 +83,7 @@
         'libraries': [
           '-ljs_static',
           '-lz',
+          '-lmozglue',
         ],
         'conditions': [
           [ 'target_arch=="arm"', {
@@ -85,18 +92,11 @@
           ['OS == "linux"', {
             'libraries': [
               '-ldl',
-              '-lmozglue',
               '-lrt',
             ],
           }],
-          ['OS == "mac"', {
-            'libraries': [
-              '-lmozglue',
-            ],
-          }],
-          ['external_spidermonkey_release_has_nspr == 1 or external_spidermonkey_debug_has_nspr == 1', {
+          ['external_spidermonkey_has_nspr == 1', {
             'libraries': [ '-lnspr4' ],
-            'xcode_settings': {'OTHER_LDFLAGS': ['-lnspr4']},
           }],
         ],
       },
