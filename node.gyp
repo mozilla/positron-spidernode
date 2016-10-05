@@ -136,7 +136,6 @@
         'tools/msvs/genfiles',
         'deps/uv/src/ares',
         '<(SHARED_INTERMEDIATE_DIR)', # for node_natives.h
-        '<(spidermonkey_obj_dir)/dist/include',
       ],
 
       'sources': [
