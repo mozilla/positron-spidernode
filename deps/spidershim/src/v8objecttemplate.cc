@@ -22,7 +22,8 @@
 
 #include "conversions.h"
 #include "v8local.h"
-#include "autojsapi.h"
+#include "v8isolate.h"
+#include "jsapi.h"
 #include "jsfriendapi.h"
 #include "instanceslots.h"
 #include "accessor.h"
@@ -1047,11 +1048,23 @@ Local<Object> ObjectTemplate::NewInstance(Local<Object> prototype,
   } else if (objectType == GlobalObject) {
     JS::CompartmentOptions options;
     options.behaviors().setVersion(JSVERSION_LATEST);
-    instanceObj = JS_NewGlobalObject(cx, instanceClass, nullptr,
+    instanceObj = JS_NewGlobalObject(cx, instanceClass, isolate->pimpl_->principals,
                                      JS::FireOnNewGlobalHook, options);
     if (!instanceObj) {
       return Local<Object>();
     }
+
+    // Copy over the private compartment data so cross compartment wrapper security
+    // checks work.
+    JSCompartment* instanceCompartment = js::GetObjectCompartment(instanceObj);
+    JS_SetCompartmentPrivate(instanceCompartment, (isolate->pimpl_->createCompartmentPrivateCallback)(isolate->pimpl_->chromeGlobal));
+
+    JSCompartment* protoCompartment = js::GetObjectCompartment(protoObj);
+    if (!JS_GetCompartmentPrivate(protoCompartment)) {
+      JS_SetCompartmentPrivate(protoCompartment, (isolate->pimpl_->createCompartmentPrivateCallback)(isolate->pimpl_->chromeGlobal));
+    }
+
+    JS_SetPrivate(instanceObj, js::GetObjectPrivate(isolate->pimpl_->chromeGlobal));
 
     JSAutoCompartment ac(cx, instanceObj);
 
@@ -1266,6 +1279,7 @@ ObjectTemplate::InstanceClass* ObjectTemplate::GetInstanceClass(ObjectType objec
     // This also means that any access to these slots must account for this
     // difference between the global and normal objects.
     flags |= JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(reservedSlots - JSCLASS_GLOBAL_APPLICATION_SLOTS);
+    flags |= JSCLASS_HAS_PRIVATE;
     instanceClass->ModifyClassOps().trace = JS_GlobalObjectTraceHook;
   } else {
     flags |= JSCLASS_HAS_RESERVED_SLOTS(reservedSlots);

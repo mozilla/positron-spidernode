@@ -22,6 +22,7 @@
 
 #include "v8.h"
 #include "v8context.h"
+#include "v8isolate.h"
 #include "v8local.h"
 #include "autojsapi.h"
 #include "jsfriendapi.h"
@@ -109,11 +110,15 @@ bool Context::CreateGlobal(JSContext* cx, Isolate* isolate,
   SetInstanceSlot(newGlobal, uint32_t(InstanceSlots::ContextSlot),
                   JS::PrivateValue(this));
 
+  JS::Rooted<JS::Value> componentsHandle(cx, isolate->pimpl_->components);
+  JS_SetProperty(cx, newGlobal, "Components", componentsHandle);
+
   pimpl_->global.init(isolate->RuntimeContext());
   pimpl_->global = newGlobal;
   JS::Value globalObj;
   globalObj.setObject(*newGlobal);
   HandleScope handleScope(isolate);
+
   pimpl_->globalObj.Reset(isolate,
       internal::Local<Object>::New(Isolate::GetCurrent(), globalObj));
 
@@ -156,17 +161,19 @@ void Context::Enter() {
   assert(pimpl_->global);
   JSContext* cx = JSContextFromIsolate(Isolate::GetCurrent());
   JS_BeginRequest(cx);
-  pimpl_->oldCompartment = JS_EnterCompartment(cx, pimpl_->global);
+  pimpl_->oldCompartments.push(JS_EnterCompartment(cx, pimpl_->global));
   GetIsolate()->PushCurrentContext(this);
 }
 
 void Context::Exit() {
   assert(pimpl_);
-  JSContext* cx = JSContextFromIsolate(Isolate::GetCurrent());
-  // pimpl_->oldCompartment can be nullptr.
-  JS_LeaveCompartment(cx, pimpl_->oldCompartment);
-  JS_EndRequest(cx);
+
   GetIsolate()->PopCurrentContext();
+
+  JSContext* cx = JSContextFromIsolate(Isolate::GetCurrent());
+  JS_LeaveCompartment(cx, pimpl_->oldCompartments.top());
+  pimpl_->oldCompartments.pop();
+  JS_EndRequest(cx);
 }
 
 void Context::SetEmbedderData(int idx, Local<Value> data) {

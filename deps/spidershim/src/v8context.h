@@ -23,6 +23,7 @@
 #include "autojsapi.h"
 #include <vector>
 #include <utility>
+#include <stack>
 
 using JobQueue = JS::GCVector<JSObject*, 0, js::SystemAllocPolicy>;
 using JobQueueNative = std::vector<std::pair<v8::MicrotaskCallback, void*>>;
@@ -41,6 +42,7 @@ struct Context::Impl {
   JS::PersistentRooted<JS::ValueVector> embedderData;
   JS::PersistentRooted<JobQueue> jobQueue;
   JobQueueNative jobQueueNative;
+  std::stack<JSCompartment*> oldCompartments;
   bool RunMicrotasks();
 };
 
