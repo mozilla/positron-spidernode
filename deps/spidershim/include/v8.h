@@ -56,12 +56,14 @@ class AutoJSAPI;
 struct JSRuntime;
 struct JSContext;
 class JSObject;
+struct JSPrincipals;
 class JSScript;
 class V8Engine;
 struct JSClass;
 
 namespace JS {
 class Symbol;
+class Value;
 }
 
 namespace v8 {
@@ -1875,6 +1877,7 @@ class PropertyCallbackInfo {
     return ReturnValue<T>(
         &(const_cast<PropertyCallbackInfo<T>*>(this)->_returnValue));
   }
+  bool ShouldThrowOnError() const { return true; }
 
   PropertyCallbackInfo(Local<Value> data, Local<Object> thisObject,
                        Local<Object> holder)
@@ -2548,6 +2551,8 @@ class V8_EXPORT ResourceConstraints {
                          uint64_t virtual_memory_limit) {}
 };
 
+typedef void* (CreateCompartmentPrivateCallback)(JSObject* aGlobal);
+
 class V8_EXPORT Isolate {
  public:
   struct CreateParams {
@@ -2601,6 +2606,11 @@ class V8_EXPORT Isolate {
 
   static Isolate* New(const CreateParams& params);
   static Isolate* New();
+  static Isolate* New(JSContext* jsContext,
+                      JSObject* global,
+                      JSPrincipals* principals,
+                      JS::Value components,
+                      CreateCompartmentPrivateCallback createCompartmentPrivateCallback);
   static Isolate* GetCurrent();
   typedef bool (*AbortOnUncaughtExceptionCallback)(Isolate*);
   void SetAbortOnUncaughtExceptionCallback(
@@ -2691,6 +2701,11 @@ class V8_EXPORT Isolate {
 
  private:
   Isolate();
+  Isolate(JSContext* jsContext,
+          JSObject* global,
+          JSPrincipals* principals,
+          JS::Value components,
+          CreateCompartmentPrivateCallback createCompartmentPrivateCallback);
 
   void AddContext(Context* context);
   void PushCurrentContext(Context* context);
@@ -2700,6 +2715,7 @@ class V8_EXPORT Isolate {
   void AddUnboundScript(UnboundScript* script);
   friend class ::AutoJSAPI;
   friend class Context;
+  friend class ObjectTemplate;
   friend class MicrotasksScope;
   friend class StackFrame;
   friend class StackTrace;

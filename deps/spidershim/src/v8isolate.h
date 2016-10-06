@@ -71,6 +71,13 @@ struct Isolate::Impl {
   void* embeddedData[internal::kNumIsolateDataSlots];
   Persistent<Object> hiddenGlobal;
 
+  // TODO move/remove these when we have a better way of connecting chrome contexts
+  // from positron.
+  JSObject* chromeGlobal;
+  JSPrincipals* principals;
+  JS::Value components;
+  CreateCompartmentPrivateCallback* createCompartmentPrivateCallback;
+
   bool serviceInterrupt;
   bool terminatingExecution;
   bool runningMicrotasks;

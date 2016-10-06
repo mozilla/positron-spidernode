@@ -17,13 +17,19 @@ def main():
 
     for test, config in matrix:
         cmd = "%s/out/%s/%s" % (base_dir, config, test)
-        env = ({lib_path: '%s/out/%s/spidermonkey/%s' % (base_dir, config, config)}) if external_sm else None
-        ran_test = run_test([cmd], env) or ran_test
+        env = ({lib_path: '%s/dist/bin' % (external_sm[config])}) if external_sm[config] else None
+        ran, success = run_test([cmd], env)
+        if not success:
+            return 1
+        ran_test = ran or ran_test
 
     for node in get_node_binaries(base_dir):
         config = 'Debug' if node.find('node_g') > 0 else 'Release'
-        env = ({lib_path: '%s/out/%s/spidermonkey/%s' % (base_dir, config, config)}) if external_sm else None
-        ran_test = run_test([node, '-e', 'console.log("hello, world")'], env) or ran_test
+        env = ({lib_path: '%s/dist/bin' % (external_sm[config])}) if external_sm[config] else None
+        ran, success = run_test([node, '-e', 'console.log("hello, world")'], env)
+        if not success:
+            return 1
+        ran_test = ran or ran_test
 
     if not ran_test:
         print >> sys.stderr, 'Did not run any tests! Did you forget to build?'
@@ -66,8 +72,12 @@ def get_targets(base_dir):
                  params=params, includes=includes, \
                  default_variables=default_variables)
 
+    external_sm = {
+      'Release': data['deps/spidershim/tests.gyp']['variables']['external_spidermonkey_release'],
+      'Debug': data['deps/spidershim/tests.gyp']['variables']['external_spidermonkey_debug'],
+    }
     targets = [target['target_name'] for target in data['deps/spidershim/tests.gyp']['targets']]
-    return (targets, 'deps/spidershim/spidermonkey-external.gyp' in data)
+    return (targets, external_sm)
 
 
 def get_node_binaries(base_dir):
@@ -85,11 +95,11 @@ def run_test(cmd, env):
             subprocess.check_call(cmd, env=env)
         except:
             print >> sys.stderr, '%s failed, see the log above' % (" ".join(cmd))
-            return False
-        return True
+            return (True, False)
+        return (True, True)
     else:
         print >> sys.stderr, 'Skipping %s since it does not exist' % (" ".join(cmd))
-    return False
+    return (False, True)
 
 if __name__ == '__main__':
     sys.exit(main())
