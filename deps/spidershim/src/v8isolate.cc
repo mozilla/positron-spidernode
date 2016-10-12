@@ -245,7 +245,10 @@ void Isolate::Dispose() {
     MOZ_CRASH("Cannot dispose an Isolate that is entered by a thread");
   }
   Enter();
-  JS_SetGCCallback(pimpl_->cx, NULL, NULL);
+  // If the GC callback was created by gecko, don't null it out.
+  if (!pimpl_->chromeGlobal) {
+    JS_SetGCCallback(pimpl_->cx, NULL, NULL);
+  }
   for (auto frame : pimpl_->stackFrames) {
     delete frame;
   }
