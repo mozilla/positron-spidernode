@@ -366,4 +366,21 @@ Value::IsProxy() const
 
   return js::IsProxy(obj);
 }
+
+bool
+Value::IsSharedArrayBuffer() const
+{
+  JSObject* obj = GetObject(this);
+  if (!obj) {
+    return false;
+  }
+
+  return JS_IsSharedArrayBufferObject(obj);
+}
+
+bool
+Value::IsSymbol() const
+{
+  return GetValue(this)->isSymbol();
+}
 }

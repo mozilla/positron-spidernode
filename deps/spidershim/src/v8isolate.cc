@@ -653,4 +653,9 @@ Local<Object> Isolate::GetHiddenGlobal() {
 
   return Local<Object>::New(this, pimpl_->hiddenGlobal);
 }
+
+void Isolate::LowMemoryNotification() {
+  // TODO: Not yet implemented.
+}
+
 }

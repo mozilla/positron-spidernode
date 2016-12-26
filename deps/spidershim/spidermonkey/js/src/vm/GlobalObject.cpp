@@ -15,7 +15,6 @@
 #include "jsprototypes.h"
 #include "jsweakmap.h"
 
-#include "asmjs/WasmJS.h"
 #include "builtin/AtomicsObject.h"
 #include "builtin/Eval.h"
 #if EXPOSE_INTL_API
@@ -24,9 +23,7 @@
 #include "builtin/MapObject.h"
 #include "builtin/ModuleObject.h"
 #include "builtin/Object.h"
-#ifdef SPIDERMONKEY_PROMISE
 #include "builtin/Promise.h"
-#endif
 #include "builtin/RegExp.h"
 #include "builtin/SelfHostingDefines.h"
 #include "builtin/SymbolObject.h"
@@ -40,6 +37,7 @@
 #include "vm/RegExpStatics.h"
 #include "vm/RegExpStaticsObject.h"
 #include "vm/StopIterationObject.h"
+#include "wasm/WasmJS.h"
 
 #include "jscompartmentinlines.h"
 #include "jsobjinlines.h"
@@ -98,8 +96,8 @@ js::GlobalObject::getTypedObjectModule() const {
 /* static */ bool
 GlobalObject::skipDeselectedConstructor(JSContext* cx, JSProtoKey key)
 {
-    if (key == JSProto_Wasm || key == JSProto_WebAssembly)
-        return !cx->options().wasm() || !wasm::HasCompilerSupport(cx);
+    if (key == JSProto_WebAssembly)
+        return !wasm::HasSupport(cx);
 
 #ifdef ENABLE_SHARED_ARRAY_BUFFER
     // Return true if the given constructor has been disabled at run-time.
@@ -228,11 +226,9 @@ GlobalObject::resolveConstructor(JSContext* cx, Handle<GlobalObject*> global, JS
         global->setConstructor(key, ObjectValue(*ctor));
     }
 
-    // Define any specified functions and properties, unless we're a dependent
-    // standard class (in which case they live on the prototype), or we're
-    // operating on the self-hosting global, in which case we don't want any
+    // If we're operating on the self-hosting global, we don't want any
     // functions and properties on the builtins and their prototypes.
-    if (!StandardClassIsDependent(key) && !cx->runtime()->isSelfHostingGlobal(global)) {
+    if (!cx->runtime()->isSelfHostingGlobal(global)) {
         if (const JSFunctionSpec* funs = clasp->specPrototypeFunctions()) {
             if (!JS_DefineFunctions(cx, proto, funs))
                 return false;
@@ -409,7 +405,7 @@ GlobalObject::getOrCreateEval(JSContext* cx, Handle<GlobalObject*> global,
 }
 
 bool
-GlobalObject::valueIsEval(Value val)
+GlobalObject::valueIsEval(const Value& val)
 {
     Value eval = getSlot(EVAL);
     return eval.isObject() && eval == val;
@@ -536,7 +532,6 @@ GlobalObject::initSelfHostingBuiltins(JSContext* cx, Handle<GlobalObject*> globa
            InitBareBuiltinCtor(cx, global, JSProto_Int32Array) &&
            InitBareWeakMapCtor(cx, global) &&
            InitStopIterationClass(cx, global) &&
-           InitSelfHostingCollectionIteratorFunctions(cx, global) &&
            DefineFunctions(cx, global, builtins, AsIntrinsic);
 }
 
@@ -565,8 +560,8 @@ GlobalObject::warnOnceAbout(JSContext* cx, HandleObject obj, WarnOnceFlag flag,
     MOZ_ASSERT_IF(!v.isUndefined(), v.toInt32());
     int32_t flags = v.isUndefined() ? 0 : v.toInt32();
     if (!(flags & flag)) {
-        if (!JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING, GetErrorMessage, nullptr,
-                                          errorNumber))
+        if (!JS_ReportErrorFlagsAndNumberASCII(cx, JSREPORT_WARNING, GetErrorMessage, nullptr,
+                                               errorNumber))
         {
             return false;
         }
@@ -625,17 +620,18 @@ GlobalObject::createBlankPrototypeInheriting(JSContext* cx, const Class* clasp, 
 }
 
 bool
-js::LinkConstructorAndPrototype(JSContext* cx, JSObject* ctor_, JSObject* proto_)
+js::LinkConstructorAndPrototype(JSContext* cx, JSObject* ctor_, JSObject* proto_,
+                                unsigned prototypeAttrs, unsigned constructorAttrs)
 {
     RootedObject ctor(cx, ctor_), proto(cx, proto_);
 
     RootedValue protoVal(cx, ObjectValue(*proto));
     RootedValue ctorVal(cx, ObjectValue(*ctor));
 
-    return DefineProperty(cx, ctor, cx->names().prototype, protoVal,
-                          nullptr, nullptr, JSPROP_PERMANENT | JSPROP_READONLY) &&
-           DefineProperty(cx, proto, cx->names().constructor, ctorVal,
-                          nullptr, nullptr, 0);
+    return DefineProperty(cx, ctor, cx->names().prototype, protoVal, nullptr, nullptr,
+                          prototypeAttrs) &&
+           DefineProperty(cx, proto, cx->names().constructor, ctorVal, nullptr, nullptr,
+                          constructorAttrs);
 }
 
 bool
@@ -805,10 +801,10 @@ GlobalObject::getSelfHostedFunction(JSContext* cx, Handle<GlobalObject*> global,
         return false;
     if (exists) {
         RootedFunction fun(cx, &funVal.toObject().as<JSFunction>());
-        if (fun->name() == name)
+        if (fun->explicitName() == name)
             return true;
 
-        if (fun->name() == selfHostedName) {
+        if (fun->explicitName() == selfHostedName) {
             // This function was initially cloned because it was called by
             // other self-hosted code, so the clone kept its self-hosted name,
             // instead of getting the name it's intended to have in content
